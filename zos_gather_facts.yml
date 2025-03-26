@@ -1,66 +1,30 @@
 ---
-- name: Gather and Format z/OS-specific Facts
+- name: Gather z/OS-specific facts.
   hosts: zos_host
   gather_facts: false
-  environment: "{{ environment_vars }}"
-  
-  vars:
-    # Jinja2 macro to format facts
-    format_zos_facts: >-
-      {% macro format_section(title, facts) -%}
-      {{ title | upper }}
-      {{ '-' * (title | length) }}
-      {% for key, value in facts.items() %}
-      {% if value is not none and value != '' %}
-      {{ key | replace('_', ' ') | title | ljust(25) }}: {{ value }}
-      {% endif %}
-      {% endfor %}
-
-      {% endmacro -%}
-
-      ======================================================
-      Z/OS HOST SYSTEM FACTS
-      ======================================================
-      {{ format_section('System Information', {
-        'product_name': ansible_facts.product_name,
-        'product_version': ansible_facts.product_release + '.' + ansible_facts.product_version,
-        'sysplex_name': ansible_facts.sysplex_name,
-        'system_name': ansible_facts.sys_name,
-        'primary_jes': ansible_facts.primary_jes
-      }) }}
-
-      {{ format_section('Hardware Details', {
-        'manufacturer': ansible_facts.cpc_nd_manufacturer,
-        'model': ansible_facts.cpc_nd_model,
-        'plant': ansible_facts.cpc_nd_plant,
-        'architecture_level': ansible_facts.arch_level
-      }) }}
-
-      {{ format_section('Storage and Catalog', {
-        'master_catalog_dsn': ansible_facts.master_catalog_dsn,
-        'master_catalog_volume': ansible_facts.master_catalog_volser,
-        'parmlib_dsn': ansible_facts.parmlib_dsn,
-        'parmlib_volume': ansible_facts.parmlib_volser,
-        'ipl_volume': ansible_facts.ipl_volume
-      }) }}
-
-      {{ format_section('IODF Configuration', {
-        'iodf_name': ansible_facts.iodf_name,
-        'iodf_configuration': ansible_facts.iodf_config,
-        'iodf_unit_address': ansible_facts.iodf_unit_addr
-      }) }}
-
-      ======================================================
-      ADDITIONAL SYSTEM DETAILS
-      ======================================================
-      Total Gathered Facts   : {{ ansible_facts | length }}
-      System Serial Number   : {{ ansible_facts.cpc_nd_seqno }}
-      Product Owner          : {{ ansible_facts.product_owner }}
-
+  environment:
+    "{{ environment_vars }}"
   tasks:
-    - name: Gather all facts about z/OS host
+    - name: Gather all facts about z/OS host.
       ibm.ibm_zos_core.zos_gather_facts:
 
-    - name: Display Formatted z/OS Facts
+    - name: Print gathered facts about the master catalog.
       ansible.builtin.debug:
-        msg: "{{ format_zos_facts }}"
+        msg: |
+          +------------------------+-------------------+
+          | Master Catalog DSN     | {{ ansible_facts.master_catalog_dsn }} |
+          | Master Catalog Volser  | {{ ansible_facts.master_catalog_volser }} |
+          +------------------------+-------------------+
+
+    - name: Print only CPC and IODF info from gathered z/OS facts.
+      ansible.builtin.debug:
+        msg: |
+          +---------------+----------------+-------------+--------------+----------------+
+          | Manufacturer  | Model         | Plant       | IODF Name    | IODF Config    |
+          +---------------+----------------+-------------+--------------+----------------+
+          | {{ cpc_nd_manufacturer }} | {{ cpc_nd_model }}   | {{ cpc_nd_plant }}  | {{ iodf_name }}      | {{ iodf_config }}     |
+          +---------------+----------------+-------------+--------------+----------------+
+
+    - name: Print out all gathered facts about the z/OS host.
+      ansible.builtin.debug:
+        var: ansible_facts
