@@ -1,29 +1,66 @@
-- name: Gather z/OS-specific facts.
+- name: Gather and Format z/OS-specific Facts
   hosts: zos_host
   gather_facts: false
   environment: "{{ environment_vars }}"
-  tasks:
+  vars:
+    # Define a list of interesting fact categories to highlight
+    fact_categories:
+      - title: System Information
+        facts:
+          - key: product_name
+          - key: product_release
+          - key: product_version
+          - key: sysplex_name
+          - key: sys_name
+          - key: primary_jes
 
-    - name: Gather all facts about z/OS host.
+      - title: Hardware Details
+        facts:
+          - key: cpc_nd_manufacturer
+          - key: cpc_nd_model
+          - key: cpc_nd_plant
+          - key: arch_level
+
+      - title: Storage and Catalog
+        facts:
+          - key: master_catalog_dsn
+          - key: master_catalog_volser
+          - key: parmlib_dsn
+          - key: parmlib_volser
+          - key: ipl_volume
+
+      - title: IODF Configuration
+        facts:
+          - key: iodf_name
+          - key: iodf_config
+          - key: iodf_unit_addr
+
+  tasks:
+    - name: Gather all facts about z/OS host
       ibm.ibm_zos_core.zos_gather_facts:
 
-    - name: Print gathered facts about the master catalog.
-      ansible.builtin.debug:
-        msg: |
-          Master Catalog Information:
-            - DSN: {{ ansible_facts.master_catalog_dsn }}
-            - VOLSER: {{ ansible_facts.master_catalog_volser }}
+    - name: Format and Display z/OS Facts
+      block:
+        - name: Display Formatted Facts
+          ansible.builtin.debug:
+            msg: |
+              ╔══════════════════════════════════════════════════════════
+              ║ Z/OS HOST SYSTEM FACTS
+              ╚══════════════════════════════════════════════════════════
+              {% for category in fact_categories %}
+              ► {{ category.title }}:
+              {% for fact_item in category.facts %}
+                - {{ fact_item.key }}: {{ ansible_facts[fact_item.key] | default('N/A') }}
+              {% endfor %}
 
-    - name: Print only CPC and IODF info from gathered z/OS facts.
-      ansible.builtin.debug:
-        msg: |
-          CPC & IODF Information:
-            - Manufacturer: {{ ansible_facts.cpc_nd_manufacturer }}
-            - Model: {{ ansible_facts.cpc_nd_model }}
-            - Plant: {{ ansible_facts.cpc_nd_plant }}
-            - IODF Name: {{ ansible_facts.iodf_name }}
-            - IODF Config: {{ ansible_facts.iodf_config }}
+              {% endfor %}
+              ╔══════════════════════════════════════════════════════════
+              ║ ADDITIONAL TECHNICAL DETAILS
+              ╚══════════════════════════════════════════════════════════
+              - Full hostname: {{ inventory_hostname }}
+              - Complete Fact Set: Refer to the detailed dump below
 
-    - name: Print all gathered facts about the z/OS host in YAML format.
-      ansible.builtin.debug:
-        msg: "{{ ansible_facts | to_nice_yaml }}"
+        - name: Provide Complete Fact Set
+          ansible.builtin.debug:
+            var: ansible_facts
+            verbosity: 1  # This will only show with -v flag
