@@ -13,7 +13,7 @@
         dest: "/u/ibmuser/aap/zos_facts.json"
 
     - name: Run Python script to format output.
-      script: /u/ibmuser/aap/format_zos_facts.py
+      script: /home/UM733GB/format_zos_facts.py
 
     - name: Display formatted output.
       ansible.builtin.debug:
