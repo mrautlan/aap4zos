@@ -1,30 +1,20 @@
----
-- name: Gather z/OS-specific facts.
+- name: Gather z/OS-specific facts and format output.
   hosts: zos_host
   gather_facts: false
-  environment:
-    "{{ environment_vars }}"
+  environment: "{{ environment_vars }}"
   tasks:
+
     - name: Gather all facts about z/OS host.
       ibm.ibm_zos_core.zos_gather_facts:
 
-    - name: Print gathered facts about the master catalog.
-      ansible.builtin.debug:
-        msg: |
-          +------------------------+-------------------+
-          | Master Catalog DSN     | {{ ansible_facts.master_catalog_dsn }} |
-          | Master Catalog Volser  | {{ ansible_facts.master_catalog_volser }} |
-          +------------------------+-------------------+
+    - name: Save gathered facts to a JSON file.
+      copy:
+        content: "{{ ansible_facts | to_nice_json }}"
+        dest: "/home/UM733GB/zos_facts.json"
 
-    - name: Print only CPC and IODF info from gathered z/OS facts.
-      ansible.builtin.debug:
-        msg: |
-          +---------------+----------------+-------------+--------------+----------------+
-          | Manufacturer  | Model         | Plant       | IODF Name    | IODF Config    |
-          +---------------+----------------+-------------+--------------+----------------+
-          | {{ cpc_nd_manufacturer }} | {{ cpc_nd_model }}   | {{ cpc_nd_plant }}  | {{ iodf_name }}      | {{ iodf_config }}     |
-          +---------------+----------------+-------------+--------------+----------------+
+    - name: Run Python script to format output.
+      script: /home/UM733GB/format_zos_facts.py
 
-    - name: Print out all gathered facts about the z/OS host.
+    - name: Display formatted output.
       ansible.builtin.debug:
-        var: ansible_facts
+        msg: "{{ lookup('file', '/home/UM733GB/zos_facts_formatted.txt') }}"
