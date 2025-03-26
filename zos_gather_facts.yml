@@ -10,11 +10,11 @@
     - name: Save gathered facts to a JSON file.
       copy:
         content: "{{ ansible_facts | to_nice_json }}"
-        dest: "/home/UM733GB/zos_facts.json"
+        dest: "/u/ibmuser/aap/zos_facts.json"
 
     - name: Run Python script to format output.
-      script: /home/UM733GB/format_zos_facts.py
+      script: /u/ibmuser/aap/format_zos_facts.py
 
     - name: Display formatted output.
       ansible.builtin.debug:
-        msg: "{{ lookup('file', '/home/UM733GB/zos_facts_formatted.txt') }}"
+        msg: "{{ lookup('file', '/u/ibmuser/aap/zos_facts_formatted.txt') }}"
