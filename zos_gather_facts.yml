@@ -1,66 +1,87 @@
+---
 - name: Gather and Format z/OS-specific Facts
   hosts: zos_host
   gather_facts: false
   environment: "{{ environment_vars }}"
+  
   vars:
-    # Define a list of interesting fact categories to highlight
-    fact_categories:
-      - title: System Information
-        facts:
-          - key: product_name
-          - key: product_release
-          - key: product_version
-          - key: sysplex_name
-          - key: sys_name
-          - key: primary_jes
-
-      - title: Hardware Details
-        facts:
-          - key: cpc_nd_manufacturer
-          - key: cpc_nd_model
-          - key: cpc_nd_plant
-          - key: arch_level
-
-      - title: Storage and Catalog
-        facts:
-          - key: master_catalog_dsn
-          - key: master_catalog_volser
-          - key: parmlib_dsn
-          - key: parmlib_volser
-          - key: ipl_volume
-
-      - title: IODF Configuration
-        facts:
-          - key: iodf_name
-          - key: iodf_config
-          - key: iodf_unit_addr
+    # Python filter to format facts
+    format_facts: |
+      def format_zos_facts(facts):
+          from textwrap import wrap
+          
+          def format_category(title, facts_list):
+              max_key_length = max(len(str(key)) for key, _ in facts_list if key)
+              formatted = f"\n{title}\n" + "-" * len(title) + "\n"
+              for key, value in facts_list:
+                  if value is not None and value != '':
+                      # Wrap long values
+                      if len(str(value)) > 40:
+                          wrapped_value = '\n'.join(wrap(str(value), 40))
+                      else:
+                          wrapped_value = str(value)
+                      
+                      formatted += f"{key.ljust(max_key_length + 2)}: {wrapped_value}\n"
+              return formatted
+          
+          # Define categories
+          categories = [
+              ("System Information", [
+                  ("Product Name", facts.get('product_name')),
+                  ("Product Version", f"{facts.get('product_release')}.{facts.get('product_version')}"),
+                  ("Sysplex Name", facts.get('sysplex_name')),
+                  ("System Name", facts.get('sys_name')),
+                  ("Primary Job Entry Subsystem", facts.get('primary_jes'))
+              ]),
+              ("Hardware Details", [
+                  ("Manufacturer", facts.get('cpc_nd_manufacturer')),
+                  ("Model", facts.get('cpc_nd_model')),
+                  ("Plant", facts.get('cpc_nd_plant')),
+                  ("Architecture Level", facts.get('arch_level'))
+              ]),
+              ("Storage and Catalog", [
+                  ("Master Catalog DSN", facts.get('master_catalog_dsn')),
+                  ("Master Catalog Volume", facts.get('master_catalog_volser')),
+                  ("Parmlib DSN", facts.get('parmlib_dsn')),
+                  ("Parmlib Volume", facts.get('parmlib_volser')),
+                  ("IPL Volume", facts.get('ipl_volume'))
+              ]),
+              ("IODF Configuration", [
+                  ("IODF Name", facts.get('iodf_name')),
+                  ("IODF Configuration", facts.get('iodf_config')),
+                  ("IODF Unit Address", facts.get('iodf_unit_addr'))
+              ])
+          ]
+          
+          # Generate formatted output
+          output = "=" * 60 + "\n"
+          output += "Z/OS HOST SYSTEM FACTS\n"
+          output += "=" * 60 + "\n"
+          
+          for title, fact_list in categories:
+              output += format_category(title, fact_list)
+          
+          output += "\n" + "=" * 60 + "\n"
+          output += "ADDITIONAL SYSTEM DETAILS\n"
+          output += "=" * 60 + "\n"
+          
+          # Add any additional interesting details
+          additional_details = [
+              ("Total Gathered Facts", len(facts)),
+              ("System Serial Number", facts.get('cpc_nd_seqno')),
+              ("Product Owner", facts.get('product_owner'))
+          ]
+          
+          for key, value in additional_details:
+              if value is not None and value != '':
+                  output += f"{key.ljust(25)}: {value}\n"
+          
+          return output
 
   tasks:
     - name: Gather all facts about z/OS host
       ibm.ibm_zos_core.zos_gather_facts:
 
-    - name: Format and Display z/OS Facts
-      block:
-        - name: Display Formatted Facts
-          ansible.builtin.debug:
-            msg: |
-              ╔══════════════════════════════════════════════════════════
-              ║ Z/OS HOST SYSTEM FACTS
-              ╚══════════════════════════════════════════════════════════
-              {% for category in fact_categories %}
-              ► {{ category.title }}:
-              {% for fact_item in category.facts %}
-                - {{ fact_item.key }}: {{ ansible_facts[fact_item.key] | default('N/A') }}
-              {% endfor %}
-
-              {% endfor %}
-              ╔══════════════════════════════════════════════════════════
-              ║ ADDITIONAL TECHNICAL DETAILS
-              ╚══════════════════════════════════════════════════════════
-              - Full hostname: {{ inventory_hostname }}
-              - Complete Fact Set: Refer to the detailed dump below
-
-        - name: Provide Complete Fact Set
-          ansible.builtin.debug:
-            var: ansible_facts
-            verbosity: 1  # This will only show with -v flag
+    - name: Display Formatted z/OS Facts
+      ansible.builtin.debug:
+        msg: "{{ ansible_facts | python_eval(format_facts) }}"
