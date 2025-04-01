@@ -1,33 +1,30 @@
 - name: Gather and display z/OS-specific facts (Human-Readable)
   hosts: zos_host
   gather_facts: false
-  # Add ANSIBLE_NOCOLOR=1 to remove color escape codes from output
   environment:
+    # --- Add these locale settings ---
+    LANG: "en_US.UTF-8"
+    LC_ALL: "en_US.UTF-8"
+    # --------------------------------
     ANSIBLE_NOCOLOR: "1"
-    # Include your original environment_vars here as well if they are needed
-    # Example: VAR1: "{{ some_variable }}"
-    # "{{ environment_vars }}" # <-- If environment_vars is already a dictionary
+    # Merge with your original environment_vars if they exist
+    # Example: "{{ environment_vars | combine({'LANG': 'en_US.UTF-8', 'LC_ALL': 'en_US.UTF-8', 'ANSIBLE_NOCOLOR': '1'}) }}"
 
   tasks:
-
     - name: Gather all facts about z/OS host.
       ibm.ibm_zos_core.zos_gather_facts:
-      # Register the result if you want to potentially handle errors
-      # register: zos_facts_result
+      # Add environment here too, if needed at task level (usually play level is sufficient)
+      # environment:
+      #   LANG: "en_US.UTF-8"
+      #   LC_ALL: "en_US.UTF-8"
 
-    # Optional: Add a check if facts were gathered successfully
-    # - name: Fail if z/OS facts were not gathered
-    #   ansible.builtin.fail:
-    #     msg: "Failed to gather z/OS facts. Review previous task logs."
-    #   when: zos_facts_result is defined and zos_facts_result.failed
-
+    # ... rest of your tasks ...
     - name: Display gathered facts about the master catalog.
       ansible.builtin.debug:
         msg: |
           Master Catalog Information:
             Dataset Name: {{ ansible_facts.master_catalog_dsn | default('N/A') }}
             Volume Serial: {{ ansible_facts.master_catalog_volser | default('N/A') }}
-      # Add when condition to prevent errors if facts are missing
       when: ansible_facts.master_catalog_dsn is defined
 
     - name: Display CPC and IODF info from gathered z/OS facts.
@@ -39,31 +36,11 @@
             Plant: {{ ansible_facts.cpc_nd_plant | default('N/A') }}
             IODF Name: {{ ansible_facts.iodf_name | default('N/A') }}
             IODF Config: {{ ansible_facts.iodf_config | default('N/A') }}
-      # Add when condition to prevent errors if facts are missing
       when: ansible_facts.cpc_nd_manufacturer is defined or ansible_facts.iodf_name is defined
 
-    # Consider if you *really* need to display ALL facts in a chatbot.
-    # It can be very verbose. You might prefer to select key facts.
     - name: Display all gathered facts about the z/OS host (YAML format).
       ansible.builtin.debug:
         msg: |
           All Gathered z/OS Facts:
           {{ ansible_facts | to_nice_yaml(indent=2) }}
       when: ansible_facts is defined
-
-    # --- Alternative to displaying ALL facts ---
-    # Example: Display a curated subset of important facts
-    - name: Display key z/OS system information.
-      ansible.builtin.debug:
-        msg: |
-          Key z/OS System Information:
-            System Name: {{ ansible_facts.sys_name | default('N/A') }}
-            Sysplex Name: {{ ansible_facts.sysplex_name | default('N/A') }}
-            z/OS Version: {{ ansible_facts.product_name }} {{ ansible_facts.product_version }}.{{ ansible_facts.product_release }}.{{ ansible_facts.product_mod_level }}
-            Primary JES: {{ ansible_facts.primary_jes | default('N/A') }}
-            IPL Volume: {{ ansible_facts.ipl_volume | default('N/A') }}
-            LPAR Name: {{ ansible_facts.lpar_name | default('N/A', true) }} {# Use true to output 'N/A' even if key exists but is empty #}
-      when: ansible_facts.sys_name is defined # Check if facts seem present
-      # Hide this task if you prefer the "All Facts" task above
-      tags:
-        - skip_on_summary # Example tag to potentially skip this if using the full dump
