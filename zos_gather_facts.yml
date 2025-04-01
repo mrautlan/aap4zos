@@ -1,40 +1,35 @@
-- name: Gather z/OS-specific facts.
+- name: Gather and Report z/OS Facts for Chatbot
   hosts: zos_host
   gather_facts: false
   # Assuming environment_vars are defined elsewhere (e.g., AAP Job Template)
   environment: "{{ environment_vars }}"
   tasks:
 
-    - name: Gather all facts about z/OS host.
+    - name: Gather z/OS host facts
       ibm.ibm_zos_core.zos_gather_facts:
+      # Make this task less noisy if using yaml/minimal callback
+      tags: always # Ensure it always runs
 
-    # These tasks become cleaner with the right callback
-    - name: Print gathered facts about the master catalog.
+    - name: Report Master Catalog Information
       ansible.builtin.debug:
-        msg:
-          - "Master Catalog DSN: {{ ansible_facts.master_catalog_dsn }}"
-          - "Master Catalog Volser: {{ ansible_facts.master_catalog_volser }}"
+        msg: | # Use YAML block scalar for cleaner multi-line message definition
+          Master Catalog DSN: {{ ansible_facts.master_catalog_dsn }}
+          Master Catalog Volser: {{ ansible_facts.master_catalog_volser }}
+      tags: facts, catalog # Add tags for potential selective running
 
-    - name: Print only CPC and IODF info from gathered z/OS facts.
+    - name: Report CPC and IODF Information
       ansible.builtin.debug:
-        msg:
-          - "Manufacturer: {{ ansible_facts.cpc_nd_manufacturer }}" # Use ansible_facts consistently
-          - "Model: {{ ansible_facts.cpc_nd_model }}"          # Use ansible_facts consistently
-          - "Plant: {{ ansible_facts.cpc_nd_plant }}"            # Use ansible_facts consistently
-          - "IODF Name: {{ ansible_facts.iodf_name }}"          # Use ansible_facts consistently
-          - "IODF Config: {{ ansible_facts.iodf_config }}"       # Use ansible_facts consistently
+        msg: | # Use YAML block scalar
+          Manufacturer: {{ ansible_facts.cpc_nd_manufacturer }}
+          Model: {{ ansible_facts.cpc_nd_model }}
+          Plant: {{ ansible_facts.cpc_nd_plant }}
+          IODF Name: {{ ansible_facts.iodf_name }}
+          IODF Config: {{ ansible_facts.iodf_config }}
+      tags: facts, hardware, iodf # Add tags
 
-    # Option B: Print all facts formatted nicely (Still potentially verbose for a chatbot)
-    - name: Print out all gathered facts about the z/OS host (YAML formatted).
+    - name: Provide System Summary
       ansible.builtin.debug:
-        msg: "{{ ansible_facts | to_nice_yaml }}"
-      # Optional: Add when condition if the chatbot specifically asks for "all facts"
-      # when: user_asked_for_all_facts | default(false)
-
-    # Alternative: Create a summary message instead of dumping all facts
-    - name: Provide a system summary.
-      ansible.builtin.debug:
-        msg: |
+        msg: | # Use YAML block scalar
           System Summary for {{ ansible_facts.sys_name }}:
           Product: {{ ansible_facts.product_name }} {{ ansible_facts.product_version }}.{{ ansible_facts.product_release }}.{{ ansible_facts.product_mod_level }}
           Sysplex: {{ ansible_facts.sysplex_name }}
@@ -42,3 +37,4 @@
           IPL Volume: {{ ansible_facts.ipl_volume }}
           Master Catalog: {{ ansible_facts.master_catalog_dsn }} on {{ ansible_facts.master_catalog_volser }}
           Hardware: {{ ansible_facts.cpc_nd_manufacturer }} {{ ansible_facts.cpc_nd_type }} (Model: {{ ansible_facts.cpc_nd_model }})
+      tags: facts, summary # Add tags
