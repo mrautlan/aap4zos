@@ -48,7 +48,7 @@
 
     - name: Check if Python script exists
       ansible.builtin.stat:
-        path: /home/UM733GB/parse_ansible_output.py
+        path: /var/tmp/parse_ansible_output.py
       register: script_check
       delegate_to: localhost
 
@@ -59,14 +59,14 @@
 
     - name: Set Python script permissions
       ansible.builtin.file:
-        path: /home/UM733GB/parse_ansible_output.py
+        path: /var/tmp/parse_ansible_output.py
         mode: '0755'
       when: script_check.stat.exists
       delegate_to: localhost
 
     - name: Run Python parser to format output
       ansible.builtin.shell: >
-        python3 /home/UM733GB/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
+        python3 /var/tmp/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
       args:
         executable: /bin/bash
       delegate_to: localhost
