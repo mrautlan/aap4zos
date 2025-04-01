@@ -48,7 +48,7 @@
 
     - name: Run Python parser to format output
       ansible.builtin.shell: >
-        python /path/to/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
+        python /home/UM733GB/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
       args:
         executable: /bin/bash
       delegate_to: localhost
