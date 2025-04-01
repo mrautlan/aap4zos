@@ -1,46 +1,44 @@
-- name: Gather and display z/OS-specific facts (Human-Readable)
+- name: Gather z/OS-specific facts.
   hosts: zos_host
   gather_facts: false
-  environment:
-    # --- Add these locale settings ---
-    LANG: "en_US.UTF-8"
-    LC_ALL: "en_US.UTF-8"
-    # --------------------------------
-    ANSIBLE_NOCOLOR: "1"
-    # Merge with your original environment_vars if they exist
-    # Example: "{{ environment_vars | combine({'LANG': 'en_US.UTF-8', 'LC_ALL': 'en_US.UTF-8', 'ANSIBLE_NOCOLOR': '1'}) }}"
-
+  # Assuming environment_vars are defined elsewhere (e.g., AAP Job Template)
+  environment: "{{ environment_vars }}"
   tasks:
+
     - name: Gather all facts about z/OS host.
       ibm.ibm_zos_core.zos_gather_facts:
-      # Add environment here too, if needed at task level (usually play level is sufficient)
-      # environment:
-      #   LANG: "en_US.UTF-8"
-      #   LC_ALL: "en_US.UTF-8"
 
-    # ... rest of your tasks ...
-    - name: Display gathered facts about the master catalog.
+    # These tasks become cleaner with the right callback
+    - name: Print gathered facts about the master catalog.
+      ansible.builtin.debug:
+        msg:
+          - "Master Catalog DSN: {{ ansible_facts.master_catalog_dsn }}"
+          - "Master Catalog Volser: {{ ansible_facts.master_catalog_volser }}"
+
+    - name: Print only CPC and IODF info from gathered z/OS facts.
+      ansible.builtin.debug:
+        msg:
+          - "Manufacturer: {{ ansible_facts.cpc_nd_manufacturer }}" # Use ansible_facts consistently
+          - "Model: {{ ansible_facts.cpc_nd_model }}"          # Use ansible_facts consistently
+          - "Plant: {{ ansible_facts.cpc_nd_plant }}"            # Use ansible_facts consistently
+          - "IODF Name: {{ ansible_facts.iodf_name }}"          # Use ansible_facts consistently
+          - "IODF Config: {{ ansible_facts.iodf_config }}"       # Use ansible_facts consistently
+
+    # Option B: Print all facts formatted nicely (Still potentially verbose for a chatbot)
+    - name: Print out all gathered facts about the z/OS host (YAML formatted).
+      ansible.builtin.debug:
+        msg: "{{ ansible_facts | to_nice_yaml }}"
+      # Optional: Add when condition if the chatbot specifically asks for "all facts"
+      # when: user_asked_for_all_facts | default(false)
+
+    # Alternative: Create a summary message instead of dumping all facts
+    - name: Provide a system summary.
       ansible.builtin.debug:
         msg: |
-          Master Catalog Information:
-            Dataset Name: {{ ansible_facts.master_catalog_dsn | default('N/A') }}
-            Volume Serial: {{ ansible_facts.master_catalog_volser | default('N/A') }}
-      when: ansible_facts.master_catalog_dsn is defined
-
-    - name: Display CPC and IODF info from gathered z/OS facts.
-      ansible.builtin.debug:
-        msg: |
-          CPC and IODF Information:
-            Manufacturer: {{ ansible_facts.cpc_nd_manufacturer | default('N/A') }}
-            Model: {{ ansible_facts.cpc_nd_model | default('N/A') }}
-            Plant: {{ ansible_facts.cpc_nd_plant | default('N/A') }}
-            IODF Name: {{ ansible_facts.iodf_name | default('N/A') }}
-            IODF Config: {{ ansible_facts.iodf_config | default('N/A') }}
-      when: ansible_facts.cpc_nd_manufacturer is defined or ansible_facts.iodf_name is defined
-
-    - name: Display all gathered facts about the z/OS host (YAML format).
-      ansible.builtin.debug:
-        msg: |
-          All Gathered z/OS Facts:
-          {{ ansible_facts | to_nice_yaml(indent=2) }}
-      when: ansible_facts is defined
+          System Summary for {{ ansible_facts.sys_name }}:
+          Product: {{ ansible_facts.product_name }} {{ ansible_facts.product_version }}.{{ ansible_facts.product_release }}.{{ ansible_facts.product_mod_level }}
+          Sysplex: {{ ansible_facts.sysplex_name }}
+          Primary JES: {{ ansible_facts.primary_jes }}
+          IPL Volume: {{ ansible_facts.ipl_volume }}
+          Master Catalog: {{ ansible_facts.master_catalog_dsn }} on {{ ansible_facts.master_catalog_volser }}
+          Hardware: {{ ansible_facts.cpc_nd_manufacturer }} {{ ansible_facts.cpc_nd_type }} (Model: {{ ansible_facts.cpc_nd_model }})
