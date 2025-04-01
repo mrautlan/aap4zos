@@ -1,9 +1,9 @@
+---
 - name: Gather z/OS-specific facts.
   hosts: zos_host
   gather_facts: false
   environment: "{{ environment_vars }}"
   tasks:
-
     - name: Gather all facts about z/OS host.
       ibm.ibm_zos_core.zos_gather_facts:
 
@@ -25,3 +25,45 @@
     - name: Print out all gathered facts about the z/OS host.
       ansible.builtin.debug:
         var: ansible_facts
+
+    - name: Create temp file for raw output
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .txt
+      register: temp_output_file
+      delegate_to: localhost
+
+    - name: Create formatted facts file
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .txt
+      register: formatted_output_file
+      delegate_to: localhost
+
+    - name: Copy raw facts to temp file
+      ansible.builtin.copy:
+        content: "{{ ansible_facts | to_nice_json }}"
+        dest: "{{ temp_output_file.path }}"
+      delegate_to: localhost
+
+    - name: Run Python parser to format output
+      ansible.builtin.shell: >
+        python /path/to/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
+      args:
+        executable: /bin/bash
+      delegate_to: localhost
+      register: parser_output
+
+    - name: Display formatted output
+      ansible.builtin.debug:
+        msg: "{{ lookup('file', formatted_output_file.path) | from_json }}"
+      delegate_to: localhost
+
+    - name: Clean up temporary files
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop:
+        - "{{ temp_output_file.path }}"
+        - "{{ formatted_output_file.path }}"
+      delegate_to: localhost
