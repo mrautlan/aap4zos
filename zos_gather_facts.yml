@@ -46,17 +46,69 @@
         dest: "{{ temp_output_file.path }}"
       delegate_to: localhost
 
+    - name: Check if Python script exists
+      ansible.builtin.stat:
+        path: /home/UM733GB/parse_ansible_output.py
+      register: script_check
+      delegate_to: localhost
+
+    - name: Display script existence
+      ansible.builtin.debug:
+        msg: "Python script exists: {{ script_check.stat.exists }}"
+      delegate_to: localhost
+
+    - name: Set Python script permissions
+      ansible.builtin.file:
+        path: /home/UM733GB/parse_ansible_output.py
+        mode: '0755'
+      when: script_check.stat.exists
+      delegate_to: localhost
+
     - name: Run Python parser to format output
       ansible.builtin.shell: >
-        python /home/UM733GB/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
+        python3 /home/UM733GB/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
       args:
         executable: /bin/bash
       delegate_to: localhost
       register: parser_output
+      when: script_check.stat.exists
 
+    - name: Display parser output if command failed
+      ansible.builtin.debug:
+        var: parser_output
+      when: script_check.stat.exists and parser_output.rc != 0
+      delegate_to: localhost
+      
     - name: Display formatted output
       ansible.builtin.debug:
         msg: "{{ lookup('file', formatted_output_file.path) | from_json }}"
+      delegate_to: localhost
+      when: script_check.stat.exists and parser_output.rc == 0
+
+    - name: Format output manually if script failed
+      ansible.builtin.set_fact:
+        formatted_facts:
+          System_Info:
+            Product_Name: "{{ ansible_facts.product_name }}"
+            Product_Version: "{{ ansible_facts.product_version }}.{{ ansible_facts.product_release }}.{{ ansible_facts.product_mod_level }}"
+            System_Name: "{{ ansible_facts.sys_name }}"
+            SMF_Name: "{{ ansible_facts.smf_name }}"
+          Catalog_Info:
+            Master_Catalog_DSN: "{{ ansible_facts.master_catalog_dsn }}"
+            Master_Catalog_VOLSER: "{{ ansible_facts.master_catalog_volser }}"
+          Hardware_Info:
+            Manufacturer: "{{ ansible_facts.cpc_nd_manufacturer }}"
+            Model: "{{ ansible_facts.cpc_nd_model }}"
+            Plant: "{{ ansible_facts.cpc_nd_plant }}"
+            IODF_Name: "{{ ansible_facts.iodf_name }}"
+            IODF_Config: "{{ ansible_facts.iodf_config }}"
+      when: not script_check.stat.exists or parser_output.rc != 0
+      delegate_to: localhost
+
+    - name: Display manually formatted output if script failed
+      ansible.builtin.debug:
+        var: formatted_facts
+      when: not script_check.stat.exists or parser_output.rc != 0
       delegate_to: localhost
 
     - name: Clean up temporary files
