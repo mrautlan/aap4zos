@@ -1,6 +1,6 @@
 ---
 - name: Demo z/OS Operator Command using ibm_zos_core
-  hosts: zos_system_1 # Target host from your inventory
+  hosts: zos_host # Target host from your inventory
   collections:
     - ibm.ibm_zos_core
   gather_facts: false # Generally recommended for z/OS to speed things up
