@@ -1,121 +1,66 @@
 ---
-- name: Gather z/OS-specific facts.
+- name: Gather and format z/OS-specific facts
   hosts: zos_host
   gather_facts: false
-  environment: "{{ environment_vars }}"
+  environment: "{{ environment_vars | default({}) }}" # Use default empty dict if not provided
+  
+  vars:
+    # Define the desired structure mapping here
+    # Keys are the desired human-readable names
+    # Values are Jinja2 expressions referencing the raw ansible_facts
+    zos_facts_structure:
+      System_Info:
+        Product: "{{ ansible_facts.product_name | default('N/A') }}"
+        Version: "{{ ansible_facts.product_version | default('N/A') }}.{{ ansible_facts.product_release | default('N/A') }}.{{ ansible_facts.product_mod_level | default('N/A') }}"
+        System_Name: "{{ ansible_facts.sys_name | default('N/A') }}"
+        Sysplex_Name: "{{ ansible_facts.sysplex_name | default('N/A') }}"
+        SMF_Name: "{{ ansible_facts.smf_name | default('N/A') }}"
+        Primary_JES: "{{ ansible_facts.primary_jes | default('N/A') }}"
+      Hardware_Info:
+        Manufacturer: "{{ ansible_facts.cpc_nd_manufacturer | default('N/A') }}"
+        Type_Model: "{{ ansible_facts.cpc_nd_type | default('N/A') }}-{{ ansible_facts.cpc_nd_model | default('N/A') }}"
+        Plant: "{{ ansible_facts.cpc_nd_plant | default('N/A') }}"
+        Sequence_Number: "{{ ansible_facts.cpc_nd_seqno | default('N/A') }}"
+        LPAR_Name: "{{ ansible_facts.lpar_name | default('(Not available or N/A)') }}" # Often blank if not running in LPAR mode or fact not gathered
+      IPL_Info:
+        IPL_Volume: "{{ ansible_facts.ipl_volume | default('N/A') }}"
+        Load_Param_DSN: "{{ ansible_facts.load_param_dsn | default('N/A') }}"
+        Load_Param_Device: "{{ ansible_facts.load_param_device_num | default('N/A') }}"
+        IEASYM_Suffixes: "{{ ansible_facts.ieasym_card | default('N/A') }}"
+        Nucleus_ID: "{{ ansible_facts.nucleus_id | default('N/A') }}"
+      IODF_Info:
+        IODF_Name: "{{ ansible_facts.iodf_name | default('N/A') }}"
+        IODF_Config: "{{ ansible_facts.iodf_config | default('N/A') }}"
+        EDT_ID: "{{ ansible_facts.edt | default('N/A') }}"
+        IO_Config_ID: "{{ ansible_facts.io_config_id | default('N/A') }}"
+      Catalog_Info:
+        Master_Catalog_DSN: "{{ ansible_facts.master_catalog_dsn | default('N/A') }}"
+        Master_Catalog_VOLSER: "{{ ansible_facts.master_catalog_volser | default('N/A') }}"
+      PARMLIB_Info:
+        PARMLIB_DSN: "{{ ansible_facts.parmlib_dsn | default('N/A') }}"
+        PARMLIB_VOLSER: "{{ ansible_facts.parmlib_volser | default('N/A') }}"
+
   tasks:
-    - name: Gather all facts about z/OS host.
+    - name: Gather all facts about z/OS host
       ibm.ibm_zos_core.zos_gather_facts:
+      register: zos_facts_raw # Register output to ensure ansible_facts are populated
 
-    - name: Print gathered facts about the master catalog.
-      ansible.builtin.debug:
-        msg:
-          - "master catalog dsn: {{ ansible_facts.master_catalog_dsn }}"
-          - "master catalog volser: {{ ansible_facts.master_catalog_volser }}"
+    # Optional: Fail if facts weren't gathered
+    - name: Check if z/OS facts were gathered
+      ansible.builtin.fail:
+        msg: "Failed to gather z/OS facts. 'ansible_facts' key missing or empty."
+      when: zos_facts_raw.ansible_facts is not defined or not zos_facts_raw.ansible_facts
 
-    - name: Print only CPC and IODF info from gathered z/OS facts.
-      ansible.builtin.debug:
-        msg:
-          - "manufacturer: {{ cpc_nd_manufacturer }}"
-          - "model: {{ cpc_nd_model }}"
-          - "plant: {{ cpc_nd_plant }}"
-          - "iodf name: {{ iodf_name }}"
-          - "iodf config: {{ iodf_config }}"
-
-    - name: Print out all gathered facts about the z/OS host.
-      ansible.builtin.debug:
-        var: ansible_facts
-
-    - name: Create temp file for raw output
-      ansible.builtin.tempfile:
-        state: file
-        suffix: .txt
-      register: temp_output_file
-      delegate_to: localhost
-
-    - name: Create formatted facts file
-      ansible.builtin.tempfile:
-        state: file
-        suffix: .txt
-      register: formatted_output_file
-      delegate_to: localhost
-
-    - name: Copy raw facts to temp file
-      ansible.builtin.copy:
-        content: "{{ ansible_facts | to_nice_json }}"
-        dest: "{{ temp_output_file.path }}"
-      delegate_to: localhost
-
-    - name: Check if Python script exists
-      ansible.builtin.stat:
-        path: /var/tmp/parse_ansible_output.py
-      register: script_check
-      delegate_to: localhost
-
-    - name: Display script existence
-      ansible.builtin.debug:
-        msg: "Python script exists: {{ script_check.stat.exists }}"
-      delegate_to: localhost
-
-    - name: Set Python script permissions
-      ansible.builtin.file:
-        path: /var/tmp/parse_ansible_output.py
-        mode: '0755'
-      when: script_check.stat.exists
-      delegate_to: localhost
-
-    - name: Run Python parser to format output
-      ansible.builtin.shell: >
-        python3 /var/tmp/parse_ansible_output.py "{{ temp_output_file.path }}" "{{ formatted_output_file.path }}"
-      args:
-        executable: /bin/bash
-      delegate_to: localhost
-      register: parser_output
-      when: script_check.stat.exists
-
-    - name: Display parser output if command failed
-      ansible.builtin.debug:
-        var: parser_output
-      when: script_check.stat.exists and parser_output.rc != 0
-      delegate_to: localhost
-      
-    - name: Display formatted output
-      ansible.builtin.debug:
-        msg: "{{ lookup('file', formatted_output_file.path) | from_json }}"
-      delegate_to: localhost
-      when: script_check.stat.exists and parser_output.rc == 0
-
-    - name: Format output manually if script failed
+    - name: Create structured facts variable
       ansible.builtin.set_fact:
-        formatted_facts:
-          System_Info:
-            Product_Name: "{{ ansible_facts.product_name }}"
-            Product_Version: "{{ ansible_facts.product_version }}.{{ ansible_facts.product_release }}.{{ ansible_facts.product_mod_level }}"
-            System_Name: "{{ ansible_facts.sys_name }}"
-            SMF_Name: "{{ ansible_facts.smf_name }}"
-          Catalog_Info:
-            Master_Catalog_DSN: "{{ ansible_facts.master_catalog_dsn }}"
-            Master_Catalog_VOLSER: "{{ ansible_facts.master_catalog_volser }}"
-          Hardware_Info:
-            Manufacturer: "{{ ansible_facts.cpc_nd_manufacturer }}"
-            Model: "{{ ansible_facts.cpc_nd_model }}"
-            Plant: "{{ ansible_facts.cpc_nd_plant }}"
-            IODF_Name: "{{ ansible_facts.iodf_name }}"
-            IODF_Config: "{{ ansible_facts.iodf_config }}"
-      when: not script_check.stat.exists or parser_output.rc != 0
-      delegate_to: localhost
+        formatted_zos_facts: "{{ zos_facts_structure }}"
+        # Cacheable is optional, depends if you want this structure available
+        # across plays within the same run without recalculating.
+        # cacheable: yes 
 
-    - name: Display manually formatted output if script failed
+    - name: Display formatted z/OS facts
       ansible.builtin.debug:
-        var: formatted_facts
-      when: not script_check.stat.exists or parser_output.rc != 0
-      delegate_to: localhost
-
-    - name: Clean up temporary files
-      ansible.builtin.file:
-        path: "{{ item }}"
-        state: absent
-      loop:
-        - "{{ temp_output_file.path }}"
-        - "{{ formatted_output_file.path }}"
-      delegate_to: localhost
+        # Use the 'var' parameter with the structured fact.
+        # Ansible's default output callback often formats this nicely (like YAML).
+        var: formatted_zos_facts
+        verbosity: 0 # Ensure this always prints regardless of -v level
