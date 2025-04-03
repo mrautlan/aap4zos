@@ -2,12 +2,10 @@
 - name: Gather and format z/OS-specific facts
   hosts: zos_host
   gather_facts: false
-  environment: "{{ environment_vars | default({}) }}" # Use default empty dict if not provided
-  
+  environment: "{{ environment_vars | default({}) }}"
+
   vars:
     # Define the desired structure mapping here
-    # Keys are the desired human-readable names
-    # Values are Jinja2 expressions referencing the raw ansible_facts
     zos_facts_structure:
       System_Info:
         Product: "{{ ansible_facts.product_name | default('N/A') }}"
@@ -21,7 +19,7 @@
         Type_Model: "{{ ansible_facts.cpc_nd_type | default('N/A') }}-{{ ansible_facts.cpc_nd_model | default('N/A') }}"
         Plant: "{{ ansible_facts.cpc_nd_plant | default('N/A') }}"
         Sequence_Number: "{{ ansible_facts.cpc_nd_seqno | default('N/A') }}"
-        LPAR_Name: "{{ ansible_facts.lpar_name | default('(Not available or N/A)') }}" # Often blank if not running in LPAR mode or fact not gathered
+        LPAR_Name: "{{ ansible_facts.lpar_name | default('(Not available or N/A)') }}"
       IPL_Info:
         IPL_Volume: "{{ ansible_facts.ipl_volume | default('N/A') }}"
         Load_Param_DSN: "{{ ansible_facts.load_param_dsn | default('N/A') }}"
@@ -43,24 +41,24 @@
   tasks:
     - name: Gather all facts about z/OS host
       ibm.ibm_zos_core.zos_gather_facts:
-      register: zos_facts_raw # Register output to ensure ansible_facts are populated
+      register: zos_facts_raw
+      # Add tags to potentially control execution later
+      tags: [always] 
 
-    # Optional: Fail if facts weren't gathered
     - name: Check if z/OS facts were gathered
       ansible.builtin.fail:
-        msg: "Failed to gather z/OS facts. 'ansible_facts' key missing or empty."
+        msg: "Failed to gather z/OS facts. 'ansible_facts' key missing or empty in registered variable zos_facts_raw."
       when: zos_facts_raw.ansible_facts is not defined or not zos_facts_raw.ansible_facts
+      tags: [always]
 
     - name: Create structured facts variable
       ansible.builtin.set_fact:
         formatted_zos_facts: "{{ zos_facts_structure }}"
-        # Cacheable is optional, depends if you want this structure available
-        # across plays within the same run without recalculating.
-        # cacheable: yes 
+      tags: [always]
 
-    - name: Display formatted z/OS facts
+    # THIS IS THE KEY TASK FOR CLEAN OUTPUT
+    - name: Display formatted z/OS facts as clean YAML
       ansible.builtin.debug:
-        # Use the 'var' parameter with the structured fact.
-        # Ansible's default output callback often formats this nicely (like YAML).
-        var: formatted_zos_facts
-        verbosity: 0 # Ensure this always prints regardless of -v level
+        msg: "{{ formatted_zos_facts | to_nice_yaml }}"
+      # Add a specific tag for use with specific callbacks (see below)
+      tags: [print_action]
