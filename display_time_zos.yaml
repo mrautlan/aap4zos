@@ -1,0 +1,28 @@
+---
+- name: Demo z/OS Operator Command using ibm_zos_core
+  hosts: zos_system_1 # Target host from your inventory
+  collections:
+    - ibm.ibm_zos_core
+  gather_facts: false # Generally recommended for z/OS to speed things up
+
+  environment: # Important for character encoding and module execution
+    _BPXK_AUTOCVT: "ON"
+    LANG: "C"
+    LC_ALL: "C"
+
+  tasks:
+    - name: Issue DISPLAY TIME operator command
+      ibm.ibm_zos_core.zos_operator:
+        cmd: 'D T' # The operator command to execute
+        verbose: false # Set to true for more detailed module debug output if needed
+        wait_time_s: 5 # How long to wait for command completion (optional)
+      register: operator_cmd_result # Store the output in a variable
+
+    - name: Display the command output
+      ansible.builtin.debug:
+        msg: "{{ operator_cmd_result.content }}" # 'content' holds the command stdout lines as a list
+
+    # Optional: Display more details from the result if interested
+    # - name: Display full operator command result structure
+    #   ansible.builtin.debug:
+    #     var: operator_cmd_result
